@@ -1,0 +1,247 @@
+---
+# ─── Namespace ────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lms
+
+---
+# ─── API Deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-api
+  namespace: lms
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lms-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0     # zero-downtime
+  template:
+    metadata:
+      labels:
+        app: lms-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/yourorg/lms/api:latest
+          ports:
+            - containerPort: 4000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: jwt-secret
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: cookie-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu:    "250m"
+            limits:
+              memory: "512Mi"
+              cpu:    "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+
+---
+# ─── API Service ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: lms-api-svc
+  namespace: lms
+spec:
+  selector:
+    app: lms-api
+  ports:
+    - port: 4000
+      targetPort: 4000
+
+---
+# ─── API HorizontalPodAutoscaler ──────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: lms-api-hpa
+  namespace: lms
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: lms-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ─── Web Deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-web
+  namespace: lms
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lms-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: lms-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/yourorg/lms/web:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: https://api.yourlms.com
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+---
+# ─── Web Service ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: lms-web-svc
+  namespace: lms
+spec:
+  selector:
+    app: lms-web
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+---
+# ─── Worker Deployment ────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-worker
+  namespace: lms
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lms-worker
+  template:
+    metadata:
+      labels:
+        app: lms-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/yourorg/lms/worker:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lms-secrets
+                  key: redis-url
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"   # transcoding is CPU-heavy
+
+---
+# ─── Ingress (nginx) ──────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lms-ingress
+  namespace: lms
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - yourlms.com
+        - api.yourlms.com
+      secretName: lms-tls
+  rules:
+    - host: api.yourlms.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lms-api-svc
+                port:
+                  number: 4000
+    - host: yourlms.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: lms-web-svc
+                port:
+                  number: 3000

@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    --brand: #6c4de4;
+    --brand-light: #8b7cf6;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply font-sans;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-300 dark:bg-gray-600 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-400 dark:bg-gray-500; }
+
+  /* Video.js overrides */
+  .video-js .vjs-big-play-button {
+    @apply !bg-brand-600 border-0 rounded-full !w-16 !h-16;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+  }
+  .video-js .vjs-control-bar { @apply !bg-black/70 backdrop-blur-sm; }
+  .video-js .vjs-play-progress { @apply !bg-brand-500; }
+  .video-js .vjs-load-progress { @apply !bg-white/20; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2
+           rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply bg-white dark:bg-brand-800 border border-gray-200 dark:border-brand-700
+           hover:border-brand-400 text-gray-700 dark:text-gray-200 font-medium px-4 py-2
+           rounded-lg transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400
+           hover:bg-brand-50 dark:hover:bg-brand-900 font-medium px-3 py-2 rounded-lg transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800
+           rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+
+  .input-base {
+    @apply w-full px-3 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+           rounded-lg text-sm placeholder:text-gray-400 transition-colors
+           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+           dark:text-white;
+  }
+
+  .label-base {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-free     { @apply badge bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400; }
+  .badge-pro      { @apply badge bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-400; }
+  .badge-beginner { @apply badge bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400; }
+  .badge-intermediate { @apply badge bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400; }
+  .badge-advanced { @apply badge bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400; }
+
+  .section-heading {
+    @apply text-2xl md:text-3xl font-display font-bold text-gray-900 dark:text-white;
+  }
+
+  .progress-ring {
+    transform: rotate(-90deg);
+    transform-origin: center;
+  }
+}
+
+/* Animations */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+}

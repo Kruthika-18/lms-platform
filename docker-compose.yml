@@ -1,0 +1,100 @@
+version: '3.9'
+
+services:
+  # ─── Databases ─────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       lms_dev
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+
+  # ─── API ────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: ../../infra/docker/api.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV:     development
+      PORT:         4000
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/lms_dev
+      REDIS_URL:    redis://redis:6379
+    env_file:
+      - ./apps/api/.env
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    volumes:
+      - ./apps/api/src:/app/src:delegated  # hot reload in dev
+
+  # ─── Web ────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: ../../infra/docker/web.Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app:delegated
+      - /app/node_modules
+      - /app/.next
+
+  # ─── Workers ────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: ../../infra/docker/worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/lms_dev
+      REDIS_URL:    redis://redis:6379
+    env_file:
+      - ./apps/api/.env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  # ─── Bull Board (queue UI) ────────────────────────────────────
+  bull-board:
+    image: deadly0/bull-board:latest
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+    ports:
+      - '3001:3000'
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:
