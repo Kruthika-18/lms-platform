@@ -49,8 +49,8 @@ async function bootstrap() {
     },
   });
 
-  await fastify.register(cors, {
-    origin:      process.env.FRONTEND_URL,
+ fastify.register(cors, {
+  origin: ["http://localhost:3000", "https://your-frontend-url.com"],
     credentials: true,
     methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
