@@ -135,3 +135,11 @@ bootstrap().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+fastify.setErrorHandler((error, request, reply) => {
+  console.error("🔥 ERROR:", error);
+  reply.status(500).send({
+    success: false,
+    error: error.message,
+    stack: error.stack
+  });
+});
