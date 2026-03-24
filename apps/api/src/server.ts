@@ -36,7 +36,6 @@ const fastify = Fastify({
 });
 
 async function bootstrap() {
-  // ─── Security plugins ────────────────────────────────────────
   await fastify.register(helmet, {
     contentSecurityPolicy: {
       directives: {
@@ -44,15 +43,15 @@ async function bootstrap() {
         scriptSrc:  ["'self'"],
         imgSrc:     ["'self'", 'data:', '*.amazonaws.com'],
         mediaSrc:   ["'self'", '*.amazonaws.com'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", '*'],
       },
     },
   });
 
- fastify.register(cors, {
-  origin: ["http://localhost:3000", "https://your-frontend-url.com"],
+  await fastify.register(cors, {
+    origin: true,
     credentials: true,
-    methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   await fastify.register(cookie, { secret: process.env.COOKIE_SECRET! });
@@ -69,16 +68,13 @@ async function bootstrap() {
     keyGenerator: (req) => (req.user as any)?.sub ?? req.ip,
   });
 
-  // ─── Auth routes (tighter rate limit) ───────────────────────
   await fastify.register(async (scope) => {
     await scope.register(rateLimit, { max: 100, timeWindow: '15 minutes' });
     scope.register(authRoutes, { prefix: '/api/v1/auth' });
   });
 
-  // ─── Auth decorator ──────────────────────────────────────────
   await fastify.register(authMiddleware);
 
-  // ─── All routes ──────────────────────────────────────────────
   fastify.register(courseRoutes,       { prefix: '/api/v1/courses'       });
   fastify.register(enrollmentRoutes,   { prefix: '/api/v1/enrollments'   });
   fastify.register(progressRoutes,     { prefix: '/api/v1/progress'      });
@@ -92,14 +88,12 @@ async function bootstrap() {
   fastify.register(analyticsRoutes,    { prefix: '/api/v1/analytics'     });
   fastify.register(adminRoutes,        { prefix: '/api/v1/admin'         });
 
-  // ─── Health ──────────────────────────────────────────────────
   fastify.get('/health', async () => ({
     status: 'ok',
     ts:     Date.now(),
     env:    process.env.NODE_ENV,
   }));
 
-  // ─── Global error handler ────────────────────────────────────
   fastify.setErrorHandler((error, req, reply) => {
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send({
@@ -124,22 +118,13 @@ async function bootstrap() {
     });
   });
 
-  // ─── Listen ──────────────────────────────────────────────────
-  const port = Number(process.env.PORT ?? 4000);
-  await fastify.listen({ port, host: process.env.HOST ?? '0.0.0.0' });
-  console.info(`🚀 API running on http://localhost:${port}`);
-  console.info(`   Routes: /api/v1/{auth,courses,progress,videos,payments,quizzes,certificates,users,search,notifications,analytics,admin}`);
+  const port = Number(process.env.PORT) || 10000;
+  const host = process.env.HOST ?? '0.0.0.0';
+  await fastify.listen({ port, host });
+  console.info(`🚀 API running on port ${port}`);
 }
 
 bootstrap().catch((err) => {
   console.error(err);
   process.exit(1);
-});
-fastify.setErrorHandler((error, request, reply) => {
-  console.error("🔥 ERROR:", error);
-  reply.status(500).send({
-    success: false,
-    error: error.message,
-    stack: error.stack
-  });
 });
